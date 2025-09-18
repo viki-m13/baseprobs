@@ -65,6 +65,9 @@
 
         async function fetchCSV(url) {
             const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to load ${url}: ${response.status}`);
+            }
             const csvText = await response.text();
             return Papa.parse(csvText, { header: true, skipEmptyLines: true }).data;
         }
@@ -79,31 +82,39 @@
             const on3 = document.getElementById('base3').checked ? 1 : 0;
             const base_state = `${on1}-${on2}-${on3}`;
 
-            const expanded_url = 'https://raw.githubusercontent.com/viki-m13/baseball-predictor/main/expanded_probabilities.csv';
-            const bso_url = 'https://raw.githubusercontent.com/viki-m13/baseball-predictor/main/bs_o_probabilities.csv';
+            const expanded_url = 'https://raw.githubusercontent.com/viki-m13/baseprobs/main/expanded_probabilities.csv';
+            const bso_url = 'https://raw.githubusercontent.com/viki-m13/baseprobs/main/bs_o_probabilities.csv';
 
             let row = null;
             let source = 'expanded';
 
             // Try expanded first if inning and/or bases provided
             if (inning || base_state !== '0-0-0') {
-                const expanded_data = await fetchCSV(expanded_url);
-                row = expanded_data.find(r => 
-                    r.B == b && r.S == s && r.O == o && 
-                    (inning ? r.inning == inning : true) && 
-                    (base_state !== '0-0-0' ? r.base_state == base_state : true)
-                );
+                try {
+                    const expanded_data = await fetchCSV(expanded_url);
+                    row = expanded_data.find(r => 
+                        r.B == b && r.S == s && r.O == o && 
+                        (!inning || r.inning == inning) && 
+                        (base_state === '0-0-0' || r.base_state == base_state)
+                    );
+                } catch (err) {
+                    console.error('Expanded CSV load error:', err);
+                }
             }
 
             // Fallback to B-S-O
             if (!row) {
                 source = 'bso';
-                const bso_data = await fetchCSV(bso_url);
-                row = bso_data.find(r => r.B == b && r.S == s && r.O == o);
+                try {
+                    const bso_data = await fetchCSV(bso_url);
+                    row = bso_data.find(r => r.B == b && r.S == s && r.O == o);
+                } catch (err) {
+                    console.error('BSO CSV load error:', err);
+                }
             }
 
             if (!row) {
-                alert('No matching data found.');
+                alert('No matching data found. Check console (F12) for errors—likely CSVs not uploaded.');
                 return;
             }
 
@@ -119,6 +130,11 @@
             const liRel = document.createElement('li');
             liRel.textContent = `Statistically Relevant: ${row['Statistically Relevant']}`;
             probsList.appendChild(liRel);
+            if (source === 'bso') {
+                const liSource = document.createElement('li');
+                liSource.textContent = '(Using B-S-O fallback; no exact expanded match)';
+                probsList.appendChild(liSource);
+            }
 
             document.getElementById('results').style.display = 'block';
 
