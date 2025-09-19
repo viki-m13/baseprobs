@@ -11,12 +11,12 @@
         #results { margin-top: 20px; border: 1px solid #ccc; padding: 15px; }
         #probs-list { list-style: none; padding: 0; }
         #probs-list li { margin-bottom: 5px; }
-        #summary { margin-top: 20px; white-space: pre-wrap; }
+        #summary { margin-top: 20px; white-space: pre-wrap; font-weight: bold; font-size: 1.1em; color: #333; }
     </style>
 </head>
 <body>
     <h1>Baseball Pitch Probability Predictor</h1>
-    <p>Enter the situation details (inning and bases are optional). We'll look up probabilities and use DeepSeek AI for a summary.</p>
+    <p>Enter the situation details (inning and bases are optional). We'll look up probabilities and use DeepSeek AI for the most probable actionable event.</p>
     
     <form id="input-form">
         <label>Balls (0-3):
@@ -56,7 +56,7 @@
     <div id="results" style="display: none;">
         <h2>Probabilities</h2>
         <ul id="probs-list"></ul>
-        <h2>AI Summary</h2>
+        <h2>Most Probable Actionable Event</h2>
         <div id="summary"></div>
     </div>
 
@@ -138,14 +138,14 @@
 
             document.getElementById('results').style.display = 'block';
 
-            // Construct prompt for DeepSeek
+            // Construct prompt for DeepSeek: Focus on single most probable actionable event
             const situation = `Balls: ${b}, Strikes: ${s}, Outs: ${o}${inning ? `, Inning: ${inning}` : ''}${base_state !== '0-0-0' ? `, Bases: ${base_state} (1-0-0 means runner on 1st, etc.)` : ''}`;
             let probsText = 'Probabilities:\n';
             probKeys.forEach(key => {
                 probsText += `${key}: ${row[key]}\n`;
             });
             probsText += `Statistically Relevant: ${row['Statistically Relevant']}\n`;
-            const prompt = `Based on historical baseball data for this situation:\n${situation}\n\n${probsText}\nUsing reasoning, provide a brief summary of what is likely to happen on the next pitch, including key probabilities and an overall idea of the outcome. Keep it concise.`;
+            const prompt = `Based on historical baseball data for this situation:\n${situation}\n\n${probsText}\nReason step-by-step over the probabilities to identify the SINGLE most probable relevant actionable event for the next pitch (e.g., "The batter will likely swing and make contact" or "Pitcher should groove one for a walk"). Output ONLY that one concise, actionable phrase. No explanations or lists.`;
 
             // Call DeepSeek API directly
             try {
@@ -158,18 +158,18 @@
                     body: JSON.stringify({
                         model: 'deepseek-chat',
                         messages: [
-                            { role: 'system', content: 'You are a baseball analyst providing insights based on probabilities.' },
+                            { role: 'system', content: 'You are a baseball analyst. Respond with ONLY a single actionable event phrase based on probabilities.' },
                             { role: 'user', content: prompt }
                         ],
-                        max_tokens: 500,
-                        temperature: 0.7
+                        max_tokens: 100,  // Shorter for single phrase
+                        temperature: 0.3  // Lower for focused output
                     })
                 });
                 if (!response.ok) {
                     throw new Error(`API error: ${response.statusText}`);
                 }
                 const data = await response.json();
-                document.getElementById('summary').textContent = data.choices[0].message.content;
+                document.getElementById('summary').textContent = data.choices[0].message.content.trim();
             } catch (err) {
                 document.getElementById('summary').textContent = `Error: ${err.message}. Check your API key or network.`;
             }
