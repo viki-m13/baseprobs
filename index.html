@@ -10,13 +10,15 @@
         form { display: grid; gap: 10px; }
         #results { margin-top: 20px; border: 1px solid #ccc; padding: 15px; }
         #probs-list { list-style: none; padding: 0; }
-        #probs-list li { margin-bottom: 5px; }
-        #summary { margin-top: 20px; white-space: pre-wrap; font-weight: bold; font-size: 1.1em; color: #333; }
+        #probs-list li { margin-bottom: 5px; font-size: 0.9em; }
+        #definitions { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px; font-size: 0.8em; color: #666; }
+        #definitions h3 { margin-bottom: 10px; }
+        #definitions ul { list-style: disc; padding-left: 20px; }
     </style>
 </head>
 <body>
     <h1>Baseball Pitch Probability Predictor</h1>
-    <p>Enter the situation details (inning and bases are optional). We'll look up probabilities and use DeepSeek AI for the most probable actionable event.</p>
+    <p>Enter the situation details (inning and bases are optional). We'll look up probabilities from historical data.</p>
     
     <form id="input-form">
         <label>Balls (0-3):
@@ -50,19 +52,38 @@
             <label><input type="checkbox" id="base2"> Runner on 2nd</label>
             <label><input type="checkbox" id="base3"> Runner on 3rd</label>
         </fieldset>
-        <button type="button" onclick="getPrediction()">Get Prediction</button>
+        <button type="button" onclick="getPrediction()">Get Probabilities</button>
     </form>
     
     <div id="results" style="display: none;">
         <h2>Probabilities</h2>
         <ul id="probs-list"></ul>
-        <h2>Most Probable Actionable Event</h2>
-        <div id="summary"></div>
+        <div id="definitions">
+            <h3>Definitions</h3>
+            <ul>
+                <li><strong>P(Swing)</strong>: Probability the batter swings on the next pitch.</li>
+                <li><strong>P(Contact)</strong>: Probability of contact given a swing.</li>
+                <li><strong>P(Whiff)</strong>: Probability of whiff (miss) given a swing.</li>
+                <li><strong>P(Foul)</strong>: Probability of foul given a swing.</li>
+                <li><strong>P(Ball)</strong>: Probability the pitch is called a ball.</li>
+                <li><strong>P(Strike)</strong>: Probability the pitch is called a strike (including swinging/called).</li>
+                <li><strong>P(Hit)</strong>: Probability the pitch results in a hit.</li>
+                <li><strong>P(Out)</strong>: Probability the pitch results in an out.</li>
+                <li><strong>P(Struck Out)</strong>: Probability the pitch results in a strikeout.</li>
+                <li><strong>P(Home Run)</strong>: Probability the pitch results in a home run.</li>
+                <li><strong>P(Extra Base Hit)</strong>: Probability the pitch results in a double, triple, or home run.</li>
+                <li><strong>P(In Play)</strong>: Probability the pitch is put in play.</li>
+                <li><strong>P(Walk)</strong>: Probability the pitch results in a walk (BB).</li>
+                <li><strong>P(Hit By Pitch)</strong>: Probability the pitch results in a hit by pitch (HBP).</li>
+                <li><strong>P(Error)</strong>: Probability the pitch results in a fielding error.</li>
+                <li><strong>P(Sacrifice)</strong>: Probability the pitch results in a sacrifice (fly or bunt).</li>
+                <li><strong>Statistically Relevant</strong>: Indicates if sample size (total pitches) is sufficient (&ge;50) for reliable stats.</li>
+                <li><em>For expanded matches: base_state format is 'on_1b-on_2b-on_3b' (e.g., '0-1-0' for man on 2nd).</em></li>
+            </ul>
+        </div>
     </div>
 
     <script>
-        const DEEPSEEK_API_KEY = "sk-457f3a9291c74e9589c87eb822c98ae6";  // Your key here (visible in source)
-
         async function fetchCSV(url) {
             const response = await fetch(url);
             if (!response.ok) {
@@ -137,42 +158,6 @@
             }
 
             document.getElementById('results').style.display = 'block';
-
-            // Construct prompt for DeepSeek: Focus on single most probable actionable event
-            const situation = `Balls: ${b}, Strikes: ${s}, Outs: ${o}${inning ? `, Inning: ${inning}` : ''}${base_state !== '0-0-0' ? `, Bases: ${base_state} (1-0-0 means runner on 1st, etc.)` : ''}`;
-            let probsText = 'Probabilities:\n';
-            probKeys.forEach(key => {
-                probsText += `${key}: ${row[key]}\n`;
-            });
-            probsText += `Statistically Relevant: ${row['Statistically Relevant']}\n`;
-            const prompt = `Based on historical baseball data for this situation:\n${situation}\n\n${probsText}\nReason step-by-step over the probabilities to identify the SINGLE most probable relevant actionable event for the next pitch (e.g., "The batter will likely swing and make contact" or "Pitcher should groove one for a walk"). Output ONLY that one concise, actionable phrase. No explanations or lists.`;
-
-            // Call DeepSeek API directly
-            try {
-                const response = await fetch('https://api.deepseek.com/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: 'deepseek-chat',
-                        messages: [
-                            { role: 'system', content: 'You are a baseball analyst. Respond with ONLY a single actionable event phrase based on probabilities.' },
-                            { role: 'user', content: prompt }
-                        ],
-                        max_tokens: 100,  // Shorter for single phrase
-                        temperature: 0.3  // Lower for focused output
-                    })
-                });
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.statusText}`);
-                }
-                const data = await response.json();
-                document.getElementById('summary').textContent = data.choices[0].message.content.trim();
-            } catch (err) {
-                document.getElementById('summary').textContent = `Error: ${err.message}. Check your API key or network.`;
-            }
         }
     </script>
 </body>
